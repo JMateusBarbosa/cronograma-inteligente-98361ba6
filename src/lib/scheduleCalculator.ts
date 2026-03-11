@@ -1,4 +1,4 @@
-import { addDays, getDay, isEqual, startOfDay } from "date-fns";
+import { addDays, getDay, startOfDay, format } from "date-fns";
 
 // ── Types ──────────────────────────────────────────────────────────
 export interface ModuleInput {
@@ -35,10 +35,10 @@ export function profileKeyFromLabel(label: string): ProfileKey {
   return PROFILE_MAP[label] ?? "seg_qua";
 }
 
-// ── Brazilian holidays (2024-2027) ─────────────────────────────────
-// Fixed + Easter-based (Carnival, Good Friday, Corpus Christi)
+// ── Brazilian holidays (cached) ────────────────────────────────────
+const holidayCache = new Map<number, Set<string>>();
+
 function easterDate(year: number): Date {
-  // Meeus/Jones/Butcher algorithm
   const a = year % 19;
   const b = Math.floor(year / 100);
   const c = year % 100;
@@ -56,10 +56,15 @@ function easterDate(year: number): Date {
   return new Date(year, month - 1, day);
 }
 
-function getHolidaysForYear(year: number): Date[] {
+function dateKey(d: Date): string {
+  return format(startOfDay(d), "yyyy-MM-dd");
+}
+
+function getHolidaySetForYear(year: number): Set<string> {
+  if (holidayCache.has(year)) return holidayCache.get(year)!;
+
   const easter = easterDate(year);
-  const holidays: Date[] = [
-    // Fixed
+  const dates: Date[] = [
     new Date(year, 0, 1),   // Ano Novo
     new Date(year, 3, 21),  // Tiradentes
     new Date(year, 4, 1),   // Dia do Trabalho
@@ -68,112 +73,89 @@ function getHolidaysForYear(year: number): Date[] {
     new Date(year, 10, 2),  // Finados
     new Date(year, 10, 15), // Proclamação da República
     new Date(year, 11, 25), // Natal
-    // Easter-based
     addDays(easter, -47),   // Carnaval (segunda)
     addDays(easter, -46),   // Carnaval (terça)
     addDays(easter, -2),    // Sexta-feira Santa
     addDays(easter, 60),    // Corpus Christi
   ];
-  return holidays.map((d) => startOfDay(d));
+
+  const set = new Set(dates.map(dateKey));
+  holidayCache.set(year, set);
+  return set;
 }
 
-export function getHolidays(startYear: number, endYear: number): Date[] {
-  const all: Date[] = [];
+function buildHolidaySet(startYear: number, endYear: number): Set<string> {
+  const merged = new Set<string>();
   for (let y = startYear; y <= endYear; y++) {
-    all.push(...getHolidaysForYear(y));
+    for (const key of getHolidaySetForYear(y)) {
+      merged.add(key);
+    }
   }
-  return all;
+  return merged;
 }
 
-// ── Helper functions ───────────────────────────────────────────────
-function isHoliday(date: Date, holidays: Date[]): boolean {
-  const d = startOfDay(date);
-  return holidays.some((h) => isEqual(d, h));
+// ── Helper functions (O(1) lookup) ─────────────────────────────────
+function isHoliday(date: Date, holidays: Set<string>): boolean {
+  return holidays.has(dateKey(date));
 }
 
-// getDay: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
 function isClassDay(date: Date, profile: ProfileKey): boolean {
   const day = getDay(date);
   switch (profile) {
-    case "seg_qua":
-      return day === 1 || day === 3;
-    case "ter_qui":
-      return day === 2 || day === 4;
-    case "seg_a_qui":
-      return day >= 1 && day <= 4;
-    case "sexta":
-      return day === 5;
-    case "sabado":
-      return day === 6;
-    default:
-      return false;
+    case "seg_qua":   return day === 1 || day === 3;
+    case "ter_qui":   return day === 2 || day === 4;
+    case "seg_a_qui": return day >= 1 && day <= 4;
+    case "sexta":     return day === 5;
+    case "sabado":    return day === 6;
+    default:          return false;
   }
 }
 
 function hoursPerDay(profile: ProfileKey): number {
-  if (profile === "sabado" || profile === "sexta") return 2;
-  return 1;
+  return profile === "sabado" || profile === "sexta" ? 2 : 1;
 }
 
 // ── Core engine ────────────────────────────────────────────────────
-function findFirstClassDay(
-  startDate: Date,
-  profile: ProfileKey,
-  holidays: Date[]
-): Date {
-  let current = startOfDay(startDate);
-  // Safety limit
+function findFirstClassDay(start: Date, profile: ProfileKey, holidays: Set<string>): Date {
+  let current = startOfDay(start);
   for (let i = 0; i < 365; i++) {
-    if (!isHoliday(current, holidays) && isClassDay(current, profile)) {
-      return current;
-    }
+    if (!isHoliday(current, holidays) && isClassDay(current, profile)) return current;
     current = addDays(current, 1);
   }
   return current;
 }
 
 function calculateModuleEnd(
-  startDate: Date,
+  start: Date,
   totalHours: number,
   profile: ProfileKey,
-  holidays: Date[]
+  holidays: Set<string>
 ): { endDate: Date; classDaysUsed: number; holidaysImpacted: Date[] } {
-  let current = startOfDay(startDate);
+  let current = startOfDay(start);
   let accumulated = 0;
   let classDaysUsed = 0;
   const holidaysImpacted: Date[] = [];
 
   for (let i = 0; i < 3650; i++) {
     if (isHoliday(current, holidays)) {
-      if (isClassDay(current, profile)) {
-        holidaysImpacted.push(new Date(current));
-      }
+      if (isClassDay(current, profile)) holidaysImpacted.push(new Date(current));
       current = addDays(current, 1);
       continue;
     }
     if (isClassDay(current, profile)) {
-      const hours = hoursPerDay(profile);
-      accumulated += hours;
+      accumulated += hoursPerDay(profile);
       classDaysUsed++;
-      if (accumulated >= totalHours) {
-        return { endDate: current, classDaysUsed, holidaysImpacted };
-      }
+      if (accumulated >= totalHours) return { endDate: current, classDaysUsed, holidaysImpacted };
     }
     current = addDays(current, 1);
   }
   return { endDate: current, classDaysUsed, holidaysImpacted };
 }
 
-function nextClassDay(
-  afterDate: Date,
-  profile: ProfileKey,
-  holidays: Date[]
-): Date {
+function nextClassDay(afterDate: Date, profile: ProfileKey, holidays: Set<string>): Date {
   let current = addDays(afterDate, 1);
   for (let i = 0; i < 365; i++) {
-    if (!isHoliday(current, holidays) && isClassDay(current, profile)) {
-      return current;
-    }
+    if (!isHoliday(current, holidays) && isClassDay(current, profile)) return current;
     current = addDays(current, 1);
   }
   return current;
@@ -187,7 +169,7 @@ export function calcularCronograma(
 ): ScheduleResult[] {
   const profile = profileKeyFromLabel(profileLabel);
   const startYear = dataInicio.getFullYear();
-  const holidays = getHolidays(startYear, startYear + 3);
+  const holidays = buildHolidaySet(startYear, startYear + 3);
 
   let currentDate = findFirstClassDay(dataInicio, profile, holidays);
   const results: ScheduleResult[] = [];
@@ -195,18 +177,14 @@ export function calcularCronograma(
   for (const mod of modules) {
     if (mod.hours <= 0 || !mod.name.trim()) continue;
 
-    const startModule = currentDate;
     const { endDate, classDaysUsed, holidaysImpacted } = calculateModuleEnd(
-      startModule,
-      mod.hours,
-      profile,
-      holidays
+      currentDate, mod.hours, profile, holidays
     );
 
     results.push({
       module: mod.name,
       hours: mod.hours,
-      startDate: startModule,
+      startDate: currentDate,
       endDate,
       classDaysUsed,
       holidaysImpacted,

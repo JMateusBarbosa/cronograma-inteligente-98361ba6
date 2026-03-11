@@ -1,18 +1,20 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarX2 } from "lucide-react";
+import { CalendarX2, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import type { ScheduleResult } from "@/lib/scheduleCalculator";
 
 interface Props {
@@ -103,6 +105,17 @@ const ScheduleResultDialog = ({ open, onOpenChange, results, profile, startDate 
             Previsão de término do curso: <strong>{fmtLong(results[results.length - 1].endDate)}</strong>
           </p>
         )}
+
+        <DialogFooter className="mt-4">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="font-heading"
+          >
+            <X className="h-4 w-4 mr-1" />
+            Fechar
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
