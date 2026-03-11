@@ -1,33 +1,32 @@
-import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-interface ModuleRow {
+export interface ModuleRow {
   id: number;
   name: string;
   hours: string;
   isNew: boolean;
 }
 
-const ModulesSection = () => {
-  const [modules, setModules] = useState<ModuleRow[]>([
-    { id: 1, name: "", hours: "", isNew: false },
-  ]);
-  const [nextId, setNextId] = useState(2);
+interface Props {
+  modules: ModuleRow[];
+  onModulesChange: (modules: ModuleRow[]) => void;
+}
 
+const ModulesSection = ({ modules, onModulesChange }: Props) => {
   const addModule = () => {
-    setModules((prev) => [...prev, { id: nextId, name: "", hours: "", isNew: true }]);
-    setNextId((prev) => prev + 1);
+    const nextId = modules.length > 0 ? Math.max(...modules.map((m) => m.id)) + 1 : 1;
+    onModulesChange([...modules, { id: nextId, name: "", hours: "", isNew: true }]);
   };
 
   const removeModule = (id: number) => {
-    setModules((prev) => prev.filter((m) => m.id !== id));
+    onModulesChange(modules.filter((m) => m.id !== id));
   };
 
   const updateModule = (id: number, field: "name" | "hours", value: string) => {
-    setModules((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, [field]: value, isNew: false } : m))
+    onModulesChange(
+      modules.map((m) => (m.id === id ? { ...m, [field]: value, isNew: false } : m))
     );
   };
 
