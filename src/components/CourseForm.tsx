@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const PERFIS = [
+export const PERFIS = [
   "Segunda e Quarta (1h por dia)",
   "Terça e Quinta (1h por dia)",
   "Sábado (2h)",
@@ -26,10 +26,14 @@ const PERFIS = [
   "Segunda a Quinta (1h por dia)",
 ];
 
-const CourseForm = () => {
-  const [startDate, setStartDate] = useState<Date>();
-  const [profile, setProfile] = useState<string>();
+interface Props {
+  startDate: Date | undefined;
+  onStartDateChange: (d: Date | undefined) => void;
+  profile: string | undefined;
+  onProfileChange: (p: string) => void;
+}
 
+const CourseForm = ({ startDate, onStartDateChange, profile, onProfileChange }: Props) => {
   return (
     <div className="space-y-6">
       {/* Data de início */}
@@ -56,7 +60,7 @@ const CourseForm = () => {
             <Calendar
               mode="single"
               selected={startDate}
-              onSelect={setStartDate}
+              onSelect={onStartDateChange}
               initialFocus
               className="p-3 pointer-events-auto"
             />
@@ -72,7 +76,7 @@ const CourseForm = () => {
         <label className="text-sm font-medium font-body text-foreground">
           Dias de aula do aluno
         </label>
-        <Select value={profile} onValueChange={setProfile}>
+        <Select value={profile} onValueChange={onProfileChange}>
           <SelectTrigger className="w-full bg-input border-border">
             <SelectValue placeholder="Selecione o perfil de aulas" />
           </SelectTrigger>
