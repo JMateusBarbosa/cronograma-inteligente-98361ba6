@@ -1,4 +1,6 @@
 import { Outlet } from "react-router-dom";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 
 const AppLayout = () => {
