@@ -5,7 +5,7 @@ const AppLayout = () => {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="h-[70px] bg-primary flex items-center justify-between px-6 shrink-0 z-20">
+      <header className="h-[70px] bg-primary items-center justify-between shrink-0 z-20 my-0 px-[60px] py-0 mx-0 flex flex-row">
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded bg-accent flex items-center justify-center">
@@ -25,8 +25,8 @@ const AppLayout = () => {
           <Outlet />
         </main>
       </div>
-    </div>
-  );
+    </div>);
+
 };
 
 export default AppLayout;
