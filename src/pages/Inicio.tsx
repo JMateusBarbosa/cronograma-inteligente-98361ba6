@@ -321,7 +321,7 @@ const Inicio = () => {
               </PopoverContent>
             </Popover>
             <p className="text-xs text-muted-foreground">
-              Informe a data em que o aluno iniciou o primeiro módulo.
+              Se a data informada não for um dia de aula ou coincidir com feriado, o sistema ajustará automaticamente para o próximo dia disponível.
             </p>
           </div>
         </div>
