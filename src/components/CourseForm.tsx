@@ -67,7 +67,7 @@ const CourseForm = ({ startDate, onStartDateChange, profile, onProfileChange }: 
           </PopoverContent>
         </Popover>
         <p className="text-xs text-muted-foreground">
-          Informe o primeiro dia em que o aluno iniciou as aulas.
+          Se a data informada não for um dia de aula ou coincidir com feriado, o sistema ajustará automaticamente para o próximo dia disponível.
         </p>
       </div>
 
