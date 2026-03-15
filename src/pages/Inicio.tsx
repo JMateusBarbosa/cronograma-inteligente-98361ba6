@@ -107,11 +107,12 @@ const fmtLong = (d: Date) =>
 // ── Component ──────────────────────────────────────────────────────
 const Inicio = () => {
   const [studentName, setStudentName] = useState("");
-  const [selectedCourseId, setSelectedCourseId] = useState<string>();
-  const [profile, setProfile] = useState<string>();
+  const [selectedCourseId, setSelectedCourseId] = useState<string | undefined>();
+  const [profile, setProfile] = useState<string | undefined>();
   const [startDate, setStartDate] = useState<Date>();
   const [results, setResults] = useState<ScheduleResult[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [formKey, setFormKey] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const selectedCourse = MOCK_COURSES.find((c) => c.id === selectedCourseId);
@@ -147,6 +148,7 @@ const Inicio = () => {
     setStartDate(undefined);
     setResults([]);
     setShowResults(false);
+    setFormKey((k) => k + 1);
   };
 
   const handleExportCSV = () => {
@@ -202,7 +204,7 @@ const Inicio = () => {
       </div>
 
       {/* Form Card */}
-      <Card className="p-6 md:p-8 shadow-md">
+      <Card key={formKey} className="p-6 md:p-8 shadow-md">
         <div className="space-y-6">
           {/* Student Name */}
           <div className="space-y-2">
