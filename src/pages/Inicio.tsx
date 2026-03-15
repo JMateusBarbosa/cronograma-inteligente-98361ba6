@@ -204,7 +204,7 @@ const Inicio = () => {
       </div>
 
       {/* Form Card */}
-      <Card className="p-6 md:p-8 shadow-md">
+      <Card key={formKey} className="p-6 md:p-8 shadow-md">
         <div className="space-y-6">
           {/* Student Name */}
           <div className="space-y-2">
