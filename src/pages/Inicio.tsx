@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -13,6 +13,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,106 +34,121 @@ import {
 import { Separator } from "@/components/ui/separator";
 import {
   calcularCronograma,
+  type HolidayConfig,
   type ScheduleResult,
 } from "@/lib/scheduleCalculator";
-
-// ── Mock data (será substituído pelo banco de dados) ───────────────
-interface MockModule {
-  name: string;
-  hours: number;
-}
-
-interface MockCourse {
-  id: string;
-  name: string;
-  modules: MockModule[];
-}
-
-const MOCK_COURSES: MockCourse[] = [
-  {
-    id: "1",
-    name: "Informática Básica",
-    modules: [
-      { name: "Digitação", hours: 8 },
-      { name: "IPD", hours: 8 },
-      { name: "Windows", hours: 16 },
-      { name: "Word", hours: 16 },
-      { name: "Excel", hours: 16 },
-      { name: "PowerPoint", hours: 8 },
-      { name: "Internet", hours: 16 },
-      { name: "Redes Sociais", hours: 8 },
-    ],
-  },
-  {
-    id: "2",
-    name: "Informática Completa",
-    modules: [
-      { name: "Digitação", hours: 8 },
-      { name: "IPD", hours: 8 },
-      { name: "Windows", hours: 16 },
-      { name: "Word", hours: 24 },
-      { name: "Excel", hours: 24 },
-      { name: "PowerPoint", hours: 16 },
-      { name: "Internet", hours: 16 },
-      { name: "Access", hours: 16 },
-      { name: "Redes Sociais", hours: 8 },
-      { name: "Manutenção", hours: 16 },
-    ],
-  },
-  {
-    id: "3",
-    name: "Excel Avançado",
-    modules: [
-      { name: "Revisão Excel Básico", hours: 8 },
-      { name: "Fórmulas Avançadas", hours: 16 },
-      { name: "Tabelas Dinâmicas", hours: 12 },
-      { name: "Macros e VBA", hours: 16 },
-      { name: "Dashboards", hours: 12 },
-    ],
-  },
-];
-
-const PERFIS = [
-  "Segunda e Quarta (1h por dia)",
-  "Terça e Quinta (1h por dia)",
-  "Sexta-feira (2h)",
-  "Sábado (2h)",
-  "Segunda a Quinta (1h por dia)",
-];
+import {
+  getCursos,
+  getFeriados,
+  getModulosByCurso,
+  getPerfilDias,
+  getPerfisAula,
+} from "@/lib/database";
+import { getSupabaseConfigDiagnostics, isSupabaseConfigured } from "@/lib/supabaseRest";
 
 const fmt = (d: Date) => format(d, "dd/MM/yyyy", { locale: ptBR });
-const fmtLong = (d: Date) =>
-  format(d, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
-// ── Component ──────────────────────────────────────────────────────
 const Inicio = () => {
   const [studentName, setStudentName] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState<string | undefined>();
-  const [profile, setProfile] = useState<string | undefined>();
+  const [profileId, setProfileId] = useState<string | undefined>();
   const [startDate, setStartDate] = useState<Date>();
   const [results, setResults] = useState<ScheduleResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  const selectedCourse = MOCK_COURSES.find((c) => c.id === selectedCourseId);
-  const totalHours = selectedCourse
-    ? selectedCourse.modules.reduce((s, m) => s + m.hours, 0)
-    : 0;
+  const cursosQuery = useQuery({
+    queryKey: ["cursos"],
+    queryFn: getCursos,
+  });
 
-  const canGenerate = !!selectedCourseId && !!profile && !!startDate;
+  const perfisQuery = useQuery({
+    queryKey: ["perfis-aula"],
+    queryFn: getPerfisAula,
+  });
+
+  const feriadosQuery = useQuery({
+    queryKey: ["feriados"],
+    queryFn: getFeriados,
+  });
+
+  const modulosQuery = useQuery({
+    queryKey: ["modulos", selectedCourseId],
+    queryFn: () => getModulosByCurso(selectedCourseId!),
+    enabled: !!selectedCourseId,
+  });
+
+  const perfilDiasQuery = useQuery({
+    queryKey: ["perfil-dias", profileId],
+    queryFn: () => getPerfilDias(profileId!),
+    enabled: !!profileId,
+  });
+
+  const selectedCourse = useMemo(
+    () => cursosQuery.data?.find((c) => c.id === selectedCourseId),
+    [cursosQuery.data, selectedCourseId]
+  );
+
+  const selectedProfile = useMemo(
+    () => perfisQuery.data?.find((p) => p.id === profileId),
+    [perfisQuery.data, profileId]
+  );
+
+  const totalHours = useMemo(
+    () => modulosQuery.data?.reduce((s, m) => s + m.carga_horaria, 0) ?? 0,
+    [modulosQuery.data]
+  );
+
+  const canGenerate =
+    !!selectedCourseId &&
+    !!profileId &&
+    !!startDate &&
+    !modulosQuery.isLoading &&
+    !perfilDiasQuery.isLoading;
 
   const handleGenerate = () => {
-    if (!selectedCourse || !profile || !startDate) {
+    if (!selectedCourseId || !profileId || !startDate) {
       toast.error("Preencha todos os campos obrigatórios.");
       return;
     }
 
+    const modulos = modulosQuery.data ?? [];
+    const perfilDias = perfilDiasQuery.data ?? [];
+
+    if (modulos.length === 0) {
+      toast.error("Esse curso não possui módulos cadastrados.");
+      return;
+    }
+
+    if (!selectedProfile || perfilDias.length === 0) {
+      toast.error("O perfil selecionado não possui dias de aula configurados.");
+      return;
+    }
+
+    const modulesInput = modulos.map((m) => ({
+      name: m.nome,
+      hours: m.carga_horaria,
+    }));
+
+    const holidays: HolidayConfig[] = (feriadosQuery.data ?? []).map((f) => ({
+      date: f.data,
+      isRecurring: f.is_recurring,
+      month: f.month,
+      day: f.day,
+    }));
+
     const schedule = calcularCronograma(
       startDate,
-      profile,
-      selectedCourse.modules
+      selectedProfile.nome,
+      modulesInput,
+      holidays,
+      {
+        daysOfWeek: perfilDias.map((d) => d.dia_semana),
+        hoursPerDay: selectedProfile.horas_por_dia,
+      }
     );
+
     setResults(schedule);
     setShowResults(true);
 
@@ -144,7 +160,7 @@ const Inicio = () => {
   const handleNewQuery = () => {
     setStudentName("");
     setSelectedCourseId(undefined);
-    setProfile(undefined);
+    setProfileId(undefined);
     setStartDate(undefined);
     setResults([]);
     setShowResults(false);
@@ -163,9 +179,11 @@ const Inicio = () => {
       .join("\n");
 
     const studentLine = studentName ? `Aluno: ${studentName}\n` : "";
-    const courseLine = selectedCourse ? `Curso: ${selectedCourse.name}\n` : "";
+    const courseLine = selectedCourse ? `Curso: ${selectedCourse.nome}\n` : "";
     const dateLine = startDate ? `Data de início: ${fmt(startDate)}\n` : "";
-    const profileLine = profile ? `Dias de aula: ${profile}\n` : "";
+    const profileLine = selectedProfile
+      ? `Dias de aula: ${selectedProfile.nome}\n`
+      : "";
 
     const csv =
       studentLine + courseLine + dateLine + profileLine + "\n" + header + rows;
@@ -175,7 +193,7 @@ const Inicio = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `cronograma-${selectedCourse?.name.replace(/\s+/g, "-").toLowerCase() || "curso"}.csv`;
+    link.download = `cronograma-${selectedCourse?.nome.replace(/\s+/g, "-").toLowerCase() || "curso"}.csv`;
     link.click();
     URL.revokeObjectURL(url);
     toast.success("CSV exportado com sucesso!");
@@ -190,9 +208,22 @@ const Inicio = () => {
   const totalClassDays = results.reduce((s, r) => s + r.classDaysUsed, 0);
   const totalResultHours = results.reduce((s, r) => s + r.hours, 0);
 
+  const hasAnyQueryError =
+    cursosQuery.isError || perfisQuery.isError || feriadosQuery.isError;
+
+  const supabaseDiagnostics = getSupabaseConfigDiagnostics();
+
+  const queryErrorMessage = [
+    cursosQuery.error,
+    perfisQuery.error,
+    feriadosQuery.error,
+  ]
+    .filter((error): error is Error => Boolean(error))
+    .map((error) => error.message)
+    .join(" | ");
+
   return (
     <div className="max-w-[900px] mx-auto">
-      {/* Page Title */}
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-heading font-bold text-primary">
           Gerador de Cronograma de Curso
@@ -203,10 +234,35 @@ const Inicio = () => {
         </p>
       </div>
 
-      {/* Form Card */}
+      {!isSupabaseConfigured() && (
+        <Card className="p-4 mb-6 border-amber-500/40 bg-amber-500/5 space-y-2">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            Crie um arquivo <code>.env</code> (não <code>.env.example</code>) e configure <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code>.
+            Se você colou valores com <code>\n</code>, remova esses caracteres e reinicie o <code>npm run dev</code>.
+          </p>
+          {supabaseDiagnostics.length > 0 && (
+            <ul className="text-xs text-amber-700 dark:text-amber-300 list-disc ml-4">
+              {supabaseDiagnostics.map((diagnostic) => (
+                <li key={diagnostic}>{diagnostic}</li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+
+      {hasAnyQueryError && (
+        <Card className="p-4 mb-6 border-destructive/30 bg-destructive/5 space-y-2">
+          <p className="text-sm text-destructive">
+            Não foi possível carregar dados do banco. Verifique URL, chave, políticas RLS e se as tabelas estão no schema <code>public</code>.
+          </p>
+          {queryErrorMessage && (
+            <p className="text-xs text-destructive/90 break-words">Detalhe: {queryErrorMessage}</p>
+          )}
+        </Card>
+      )}
+
       <Card key={formKey} className="p-6 md:p-8 shadow-md">
         <div className="space-y-6">
-          {/* Student Name */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
               <User className="h-4 w-4 text-primary" />
@@ -221,67 +277,59 @@ const Inicio = () => {
             />
           </div>
 
-          {/* Course Select */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
               <GraduationCap className="h-4 w-4 text-primary" />
               Curso <span className="text-destructive">*</span>
             </label>
-            <Select
-              value={selectedCourseId}
-              onValueChange={setSelectedCourseId}
-            >
+            <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
               <SelectTrigger className="w-full bg-input border-border">
-                <SelectValue placeholder="Selecione o curso" />
+                <SelectValue
+                  placeholder={cursosQuery.isLoading ? "Carregando cursos..." : "Selecione o curso"}
+                />
               </SelectTrigger>
               <SelectContent>
-                {MOCK_COURSES.map((c) => (
+                {(cursosQuery.data ?? []).map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.name}
+                    {c.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            {/* Course Info */}
             {selectedCourse && (
               <div className="flex flex-wrap gap-4 mt-3 p-3 rounded-lg bg-muted/50 border border-border">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4 text-primary" />
-                  <span className="text-muted-foreground">
-                    Carga horária total:
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {totalHours}h
-                  </span>
+                  <span className="text-muted-foreground">Carga horária total:</span>
+                  <span className="font-semibold text-foreground">{totalHours}h</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Layers className="h-4 w-4 text-primary" />
-                  <span className="text-muted-foreground">
-                    Quantidade de módulos:
-                  </span>
+                  <span className="text-muted-foreground">Quantidade de módulos:</span>
                   <span className="font-semibold text-foreground">
-                    {selectedCourse.modules.length}
+                    {modulosQuery.data?.length ?? 0}
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Profile Select */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-primary" />
               Dias de aula <span className="text-destructive">*</span>
             </label>
-            <Select value={profile} onValueChange={setProfile}>
+            <Select value={profileId} onValueChange={setProfileId}>
               <SelectTrigger className="w-full bg-input border-border">
-                <SelectValue placeholder="Selecione o perfil de aulas" />
+                <SelectValue
+                  placeholder={perfisQuery.isLoading ? "Carregando perfis..." : "Selecione o perfil de aulas"}
+                />
               </SelectTrigger>
               <SelectContent>
-                {PERFIS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
+                {(perfisQuery.data ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {`${p.nome} (${p.horas_por_dia}h por dia)`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -291,7 +339,6 @@ const Inicio = () => {
             </p>
           </div>
 
-          {/* Start Date */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
               <CalendarIcon className="h-4 w-4 text-primary" />
@@ -308,9 +355,7 @@ const Inicio = () => {
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {startDate
-                    ? format(startDate, "dd 'de' MMMM 'de' yyyy", {
-                        locale: ptBR,
-                      })
+                    ? format(startDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
                     : "Selecione a data"}
                 </Button>
               </PopoverTrigger>
@@ -325,13 +370,9 @@ const Inicio = () => {
                 />
               </PopoverContent>
             </Popover>
-            <p className="text-xs text-muted-foreground">
-              Se a data informada não for um dia de aula ou coincidir com feriado, o sistema ajustará automaticamente para o próximo dia disponível.
-            </p>
           </div>
         </div>
 
-        {/* Generate Button */}
         <div className="mt-8 flex justify-center">
           <Button
             size="lg"
@@ -344,45 +385,35 @@ const Inicio = () => {
         </div>
       </Card>
 
-      {/* Results Section */}
       {showResults && results.length > 0 && (
         <div ref={resultsRef} className="mt-10 print:mt-4" data-print-area>
           <h2 className="text-xl md:text-2xl font-heading font-bold text-primary mb-4">
             Cronograma do Curso
           </h2>
 
-          {/* Summary Info */}
           <Card className="p-5 mb-6 shadow-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               {studentName && (
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-primary shrink-0" />
                   <span className="text-muted-foreground">Aluno:</span>
-                  <span className="font-semibold text-foreground truncate">
-                    {studentName}
-                  </span>
+                  <span className="font-semibold text-foreground truncate">{studentName}</span>
                 </div>
               )}
               <div className="flex items-center gap-2">
                 <GraduationCap className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-muted-foreground">Curso:</span>
-                <span className="font-semibold text-foreground truncate">
-                  {selectedCourse?.name}
-                </span>
+                <span className="font-semibold text-foreground truncate">{selectedCourse?.nome}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-muted-foreground">Carga total:</span>
-                <span className="font-semibold text-foreground">
-                  {totalResultHours}h
-                </span>
+                <span className="font-semibold text-foreground">{totalResultHours}h</span>
               </div>
               <div className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-muted-foreground">Início:</span>
-                <span className="font-semibold text-foreground">
-                  {startDate && fmt(startDate)}
-                </span>
+                <span className="font-semibold text-foreground">{startDate && fmt(startDate)}</span>
               </div>
             </div>
 
@@ -390,14 +421,8 @@ const Inicio = () => {
               <>
                 <Separator className="my-3" />
                 <div className="grid grid-cols-3 gap-3">
-                  <SummaryCard
-                    label="Total de Módulos"
-                    value={String(results.length)}
-                  />
-                  <SummaryCard
-                    label="Dias de Aula"
-                    value={String(totalClassDays)}
-                  />
+                  <SummaryCard label="Total de Módulos" value={String(results.length)} />
+                  <SummaryCard label="Dias de Aula" value={String(totalClassDays)} />
                   <SummaryCard
                     label="Previsão de Término"
                     value={fmt(results[results.length - 1].endDate)}
@@ -407,7 +432,6 @@ const Inicio = () => {
             )}
           </Card>
 
-          {/* Schedule Table */}
           <Card className="shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -415,15 +439,9 @@ const Inicio = () => {
                   <tr className="bg-primary text-primary-foreground">
                     <th className="py-3 px-4 text-left font-medium">Ordem</th>
                     <th className="py-3 px-4 text-left font-medium">Módulo</th>
-                    <th className="py-3 px-4 text-left font-medium">
-                      Carga Horária
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium">
-                      Data de Início
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium">
-                      Data de Término
-                    </th>
+                    <th className="py-3 px-4 text-left font-medium">Carga Horária</th>
+                    <th className="py-3 px-4 text-left font-medium">Data de Início</th>
+                    <th className="py-3 px-4 text-left font-medium">Data de Término</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -432,17 +450,11 @@ const Inicio = () => {
                       key={i}
                       className={cn(
                         "border-b border-border/50 transition-colors",
-                        i % 2 === 0
-                          ? "bg-card"
-                          : "bg-muted/30"
+                        i % 2 === 0 ? "bg-card" : "bg-muted/30"
                       )}
                     >
-                      <td className="py-3 px-4 text-muted-foreground font-medium">
-                        {i + 1}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-foreground">
-                        {r.module}
-                      </td>
+                      <td className="py-3 px-4 text-muted-foreground font-medium">{i + 1}</td>
+                      <td className="py-3 px-4 font-medium text-foreground">{r.module}</td>
                       <td className="py-3 px-4">{r.hours}h</td>
                       <td className="py-3 px-4">{fmt(r.startDate)}</td>
                       <td className="py-3 px-4">{fmt(r.endDate)}</td>
@@ -453,29 +465,16 @@ const Inicio = () => {
             </div>
           </Card>
 
-          {/* Action Buttons */}
           <div className="mt-6 flex flex-wrap justify-center gap-3 print:hidden">
-            <Button
-              variant="outline"
-              onClick={handleExportCSV}
-              className="gap-2"
-            >
+            <Button variant="outline" onClick={handleExportCSV} className="gap-2">
               <FileDown className="h-4 w-4" />
               Exportar CSV
             </Button>
-            <Button
-              variant="outline"
-              onClick={handlePrint}
-              className="gap-2"
-            >
+            <Button variant="outline" onClick={handlePrint} className="gap-2">
               <Printer className="h-4 w-4" />
               Imprimir cronograma
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleNewQuery}
-              className="gap-2"
-            >
+            <Button variant="outline" onClick={handleNewQuery} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Nova consulta
             </Button>
