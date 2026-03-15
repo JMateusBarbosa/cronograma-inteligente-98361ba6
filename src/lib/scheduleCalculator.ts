@@ -1,4 +1,4 @@
-import { addDays, getDay, startOfDay, format } from "date-fns";
+import { addDays, getDay, startOfDay, format, parseISO } from "date-fns";
 
 // ── Types ──────────────────────────────────────────────────────────
 export interface ModuleInput {
@@ -22,6 +22,19 @@ export type ProfileKey =
   | "sexta"
   | "seg_a_qui";
 
+export interface ProfileConfig {
+  label: string;
+  daysOfWeek: number[];
+  hoursPerDay: number;
+}
+
+export interface HolidayConfig {
+  date: string;
+  isRecurring?: boolean | null;
+  month?: number | null;
+  day?: number | null;
+}
+
 // ── Profile mapping from display string ────────────────────────────
 const PROFILE_MAP: Record<string, ProfileKey> = {
   "Segunda e Quarta (1h por dia)": "seg_qua",
@@ -31,8 +44,40 @@ const PROFILE_MAP: Record<string, ProfileKey> = {
   "Segunda a Quinta (1h por dia)": "seg_a_qui",
 };
 
+const DEFAULT_PROFILES: Record<ProfileKey, ProfileConfig> = {
+  seg_qua: {
+    label: "Segunda e Quarta (1h por dia)",
+    daysOfWeek: [1, 3],
+    hoursPerDay: 1,
+  },
+  ter_qui: {
+    label: "Terça e Quinta (1h por dia)",
+    daysOfWeek: [2, 4],
+    hoursPerDay: 1,
+  },
+  sabado: {
+    label: "Sábado (2h)",
+    daysOfWeek: [6],
+    hoursPerDay: 2,
+  },
+  sexta: {
+    label: "Sexta-feira (2h)",
+    daysOfWeek: [5],
+    hoursPerDay: 2,
+  },
+  seg_a_qui: {
+    label: "Segunda a Quinta (1h por dia)",
+    daysOfWeek: [1, 2, 3, 4],
+    hoursPerDay: 1,
+  },
+};
+
 export function profileKeyFromLabel(label: string): ProfileKey {
   return PROFILE_MAP[label] ?? "seg_qua";
+}
+
+function profileFromLabel(label: string): ProfileConfig {
+  return DEFAULT_PROFILES[profileKeyFromLabel(label)];
 }
 
 // ── Brazilian holidays (cached) ────────────────────────────────────
@@ -65,18 +110,18 @@ function getHolidaySetForYear(year: number): Set<string> {
 
   const easter = easterDate(year);
   const dates: Date[] = [
-    new Date(year, 0, 1),   // Ano Novo
-    new Date(year, 3, 21),  // Tiradentes
-    new Date(year, 4, 1),   // Dia do Trabalho
-    new Date(year, 8, 7),   // Independência
-    new Date(year, 9, 12),  // Nossa Sra. Aparecida
-    new Date(year, 10, 2),  // Finados
-    new Date(year, 10, 15), // Proclamação da República
-    new Date(year, 11, 25), // Natal
-    addDays(easter, -47),   // Carnaval (segunda)
-    addDays(easter, -46),   // Carnaval (terça)
-    addDays(easter, -2),    // Sexta-feira Santa
-    addDays(easter, 60),    // Corpus Christi
+    new Date(year, 0, 1),
+    new Date(year, 3, 21),
+    new Date(year, 4, 1),
+    new Date(year, 8, 7),
+    new Date(year, 9, 12),
+    new Date(year, 10, 2),
+    new Date(year, 10, 15),
+    new Date(year, 11, 25),
+    addDays(easter, -47),
+    addDays(easter, -46),
+    addDays(easter, -2),
+    addDays(easter, 60),
   ];
 
   const set = new Set(dates.map(dateKey));
@@ -94,32 +139,46 @@ function buildHolidaySet(startYear: number, endYear: number): Set<string> {
   return merged;
 }
 
-// ── Helper functions (O(1) lookup) ─────────────────────────────────
+function mergeCustomHolidays(
+  holidays: Set<string>,
+  customHolidays: HolidayConfig[] | undefined,
+  startYear: number,
+  endYear: number
+): Set<string> {
+  if (!customHolidays || customHolidays.length === 0) return holidays;
+
+  const merged = new Set(holidays);
+
+  customHolidays.forEach((holiday) => {
+    if (holiday.isRecurring && holiday.month && holiday.day) {
+      for (let year = startYear; year <= endYear; year++) {
+        merged.add(
+          dateKey(new Date(year, holiday.month - 1, holiday.day))
+        );
+      }
+      return;
+    }
+
+    if (holiday.date) {
+      merged.add(dateKey(parseISO(holiday.date)));
+    }
+  });
+
+  return merged;
+}
+
 function isHoliday(date: Date, holidays: Set<string>): boolean {
   return holidays.has(dateKey(date));
 }
 
-function isClassDay(date: Date, profile: ProfileKey): boolean {
-  const day = getDay(date);
-  switch (profile) {
-    case "seg_qua":   return day === 1 || day === 3;
-    case "ter_qui":   return day === 2 || day === 4;
-    case "seg_a_qui": return day >= 1 && day <= 4;
-    case "sexta":     return day === 5;
-    case "sabado":    return day === 6;
-    default:          return false;
-  }
+function isClassDay(date: Date, daysOfWeek: number[]): boolean {
+  return daysOfWeek.includes(getDay(date));
 }
 
-function hoursPerDay(profile: ProfileKey): number {
-  return profile === "sabado" || profile === "sexta" ? 2 : 1;
-}
-
-// ── Core engine ────────────────────────────────────────────────────
-function findFirstClassDay(start: Date, profile: ProfileKey, holidays: Set<string>): Date {
+function findFirstClassDay(start: Date, profile: ProfileConfig, holidays: Set<string>): Date {
   let current = startOfDay(start);
   for (let i = 0; i < 365; i++) {
-    if (!isHoliday(current, holidays) && isClassDay(current, profile)) return current;
+    if (!isHoliday(current, holidays) && isClassDay(current, profile.daysOfWeek)) return current;
     current = addDays(current, 1);
   }
   return current;
@@ -128,7 +187,7 @@ function findFirstClassDay(start: Date, profile: ProfileKey, holidays: Set<strin
 function calculateModuleEnd(
   start: Date,
   totalHours: number,
-  profile: ProfileKey,
+  profile: ProfileConfig,
   holidays: Set<string>
 ): { endDate: Date; classDaysUsed: number; holidaysImpacted: Date[] } {
   let current = startOfDay(start);
@@ -138,38 +197,52 @@ function calculateModuleEnd(
 
   for (let i = 0; i < 3650; i++) {
     if (isHoliday(current, holidays)) {
-      if (isClassDay(current, profile)) holidaysImpacted.push(new Date(current));
+      if (isClassDay(current, profile.daysOfWeek)) holidaysImpacted.push(new Date(current));
       current = addDays(current, 1);
       continue;
     }
-    if (isClassDay(current, profile)) {
-      accumulated += hoursPerDay(profile);
+
+    if (isClassDay(current, profile.daysOfWeek)) {
+      accumulated += profile.hoursPerDay;
       classDaysUsed++;
       if (accumulated >= totalHours) return { endDate: current, classDaysUsed, holidaysImpacted };
     }
     current = addDays(current, 1);
   }
+
   return { endDate: current, classDaysUsed, holidaysImpacted };
 }
 
-function nextClassDay(afterDate: Date, profile: ProfileKey, holidays: Set<string>): Date {
+function nextClassDay(afterDate: Date, profile: ProfileConfig, holidays: Set<string>): Date {
   let current = addDays(afterDate, 1);
   for (let i = 0; i < 365; i++) {
-    if (!isHoliday(current, holidays) && isClassDay(current, profile)) return current;
+    if (!isHoliday(current, holidays) && isClassDay(current, profile.daysOfWeek)) return current;
     current = addDays(current, 1);
   }
   return current;
 }
 
-// ── Main function ──────────────────────────────────────────────────
 export function calcularCronograma(
   dataInicio: Date,
   profileLabel: string,
-  modules: ModuleInput[]
+  modules: ModuleInput[],
+  customHolidays?: HolidayConfig[],
+  customProfile?: Omit<ProfileConfig, "label">
 ): ScheduleResult[] {
-  const profile = profileKeyFromLabel(profileLabel);
+  const profile = customProfile
+    ? { ...customProfile, label: profileLabel }
+    : profileFromLabel(profileLabel);
+
   const startYear = dataInicio.getFullYear();
-  const holidays = buildHolidaySet(startYear, startYear + 3);
+  const endYear = startYear + 3;
+
+  const brazilianHolidays = buildHolidaySet(startYear, endYear);
+  const holidays = mergeCustomHolidays(
+    brazilianHolidays,
+    customHolidays,
+    startYear,
+    endYear
+  );
 
   let currentDate = findFirstClassDay(dataInicio, profile, holidays);
   const results: ScheduleResult[] = [];
@@ -178,7 +251,10 @@ export function calcularCronograma(
     if (mod.hours <= 0 || !mod.name.trim()) continue;
 
     const { endDate, classDaysUsed, holidaysImpacted } = calculateModuleEnd(
-      currentDate, mod.hours, profile, holidays
+      currentDate,
+      mod.hours,
+      profile,
+      holidays
     );
 
     results.push({
