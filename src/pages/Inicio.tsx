@@ -148,6 +148,7 @@ const Inicio = () => {
     setStartDate(undefined);
     setResults([]);
     setShowResults(false);
+    setFormKey((k) => k + 1);
   };
 
   const handleExportCSV = () => {
