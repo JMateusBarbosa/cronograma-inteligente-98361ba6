@@ -180,7 +180,9 @@ const Inicio = () => {
   };
 
   const handlePrint = () => {
+    document.body.classList.add("printing-schedule");
     window.print();
+    document.body.classList.remove("printing-schedule");
   };
 
   const totalClassDays = results.reduce((s, r) => s + r.classDaysUsed, 0);
