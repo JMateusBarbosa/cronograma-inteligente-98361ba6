@@ -344,7 +344,7 @@ const Inicio = () => {
 
       {/* Results Section */}
       {showResults && results.length > 0 && (
-        <div ref={resultsRef} className="mt-10 print:mt-4">
+        <div ref={resultsRef} className="mt-10 print:mt-4" data-print-area>
           <h2 className="text-xl md:text-2xl font-heading font-bold text-primary mb-4">
             Cronograma do Curso
           </h2>

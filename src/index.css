@@ -84,3 +84,22 @@
 .animate-module-row {
   animation: module-row-in 0.6s ease-out forwards;
 }
+
+@media print {
+  body.printing-schedule * {
+    visibility: hidden !important;
+  }
+  body.printing-schedule [data-print-area],
+  body.printing-schedule [data-print-area] * {
+    visibility: visible !important;
+  }
+  body.printing-schedule [data-print-area] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  body.printing-schedule .print\:hidden {
+    display: none !important;
+  }
+}
