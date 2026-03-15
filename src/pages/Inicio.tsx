@@ -168,7 +168,8 @@ const Inicio = () => {
     const csv =
       studentLine + courseLine + dateLine + profileLine + "\n" + header + rows;
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -179,7 +180,9 @@ const Inicio = () => {
   };
 
   const handlePrint = () => {
+    document.body.classList.add("printing-schedule");
     window.print();
+    document.body.classList.remove("printing-schedule");
   };
 
   const totalClassDays = results.reduce((s, r) => s + r.classDaysUsed, 0);
@@ -341,7 +344,7 @@ const Inicio = () => {
 
       {/* Results Section */}
       {showResults && results.length > 0 && (
-        <div ref={resultsRef} className="mt-10 print:mt-4">
+        <div ref={resultsRef} className="mt-10 print:mt-4" data-print-area>
           <h2 className="text-xl md:text-2xl font-heading font-bold text-primary mb-4">
             Cronograma do Curso
           </h2>
