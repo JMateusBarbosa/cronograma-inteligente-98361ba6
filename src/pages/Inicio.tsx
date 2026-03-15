@@ -107,11 +107,12 @@ const fmtLong = (d: Date) =>
 // ── Component ──────────────────────────────────────────────────────
 const Inicio = () => {
   const [studentName, setStudentName] = useState("");
-  const [selectedCourseId, setSelectedCourseId] = useState<string>();
-  const [profile, setProfile] = useState<string>();
+  const [selectedCourseId, setSelectedCourseId] = useState<string | undefined>();
+  const [profile, setProfile] = useState<string | undefined>();
   const [startDate, setStartDate] = useState<Date>();
   const [results, setResults] = useState<ScheduleResult[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [formKey, setFormKey] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const selectedCourse = MOCK_COURSES.find((c) => c.id === selectedCourseId);
