@@ -1,4 +1,6 @@
-import { supabaseSelect } from "@/lib/supabaseRest";
+import { supabaseSelect, supabaseInsert, supabaseUpdate, supabaseDelete } from "@/lib/supabaseRest";
+
+// ── Types ──────────────────────────────────────────────────────────
 
 export interface Curso {
   id: string;
@@ -20,7 +22,6 @@ export interface CursoModulo {
   modulos: { nome: string };
 }
 
-/** Flattened module info for UI consumption */
 export interface CursoModuloFlat {
   id: string;
   curso_id: string;
@@ -51,9 +52,18 @@ export interface Feriado {
   day: number | null;
 }
 
+// ── Reads ──────────────────────────────────────────────────────────
+
 export async function getCursos(): Promise<Curso[]> {
   return supabaseSelect<Curso>("cursos", {
     select: "id,nome,carga_horaria_total",
+    order: "nome.asc",
+  });
+}
+
+export async function getModulos(): Promise<Modulo[]> {
+  return supabaseSelect<Modulo>("modulos", {
+    select: "id,nome",
     order: "nome.asc",
   });
 }
@@ -95,4 +105,81 @@ export async function getFeriados(): Promise<Feriado[]> {
     select: "id,data,descricao,is_recurring,month,day",
     order: "data.asc",
   });
+}
+
+// ── Mutations: Módulos ─────────────────────────────────────────────
+
+export async function createModulo(nome: string): Promise<Modulo> {
+  const rows = await supabaseInsert<Modulo>("modulos", { nome });
+  return rows[0];
+}
+
+export async function updateModulo(id: string, nome: string): Promise<Modulo> {
+  const rows = await supabaseUpdate<Modulo>("modulos", { id: `eq.${id}` }, { nome });
+  return rows[0];
+}
+
+export async function deleteModulo(id: string): Promise<void> {
+  await supabaseDelete("modulos", { id: `eq.${id}` });
+}
+
+// ── Mutations: Cursos ──────────────────────────────────────────────
+
+export async function createCurso(nome: string): Promise<Curso> {
+  const rows = await supabaseInsert<Curso>("cursos", { nome });
+  return rows[0];
+}
+
+export async function updateCurso(id: string, nome: string): Promise<Curso> {
+  const rows = await supabaseUpdate<Curso>("cursos", { id: `eq.${id}` }, { nome });
+  return rows[0];
+}
+
+export async function deleteCurso(id: string): Promise<void> {
+  // Delete associated curso_modulos first
+  await supabaseDelete("curso_modulos", { curso_id: `eq.${id}` });
+  await supabaseDelete("cursos", { id: `eq.${id}` });
+}
+
+export async function saveCursoModulos(
+  cursoId: string,
+  modulos: { modulo_id: string; carga_horaria: number; ordem: number }[]
+): Promise<void> {
+  // Delete existing
+  await supabaseDelete("curso_modulos", { curso_id: `eq.${cursoId}` });
+  // Insert new
+  if (modulos.length > 0) {
+    await supabaseInsert("curso_modulos", modulos.map((m) => ({
+      curso_id: cursoId,
+      modulo_id: m.modulo_id,
+      carga_horaria: m.carga_horaria,
+      ordem: m.ordem,
+    })), false);
+  }
+}
+
+// ── Mutations: Feriados ────────────────────────────────────────────
+
+export async function createFeriado(data: Omit<Feriado, "id">): Promise<Feriado> {
+  const rows = await supabaseInsert<Feriado>("feriados", data as Record<string, unknown>);
+  return rows[0];
+}
+
+export async function updateFeriado(id: string, data: Partial<Omit<Feriado, "id">>): Promise<Feriado> {
+  const rows = await supabaseUpdate<Feriado>("feriados", { id: `eq.${id}` }, data as Record<string, unknown>);
+  return rows[0];
+}
+
+export async function deleteFeriado(id: string): Promise<void> {
+  await supabaseDelete("feriados", { id: `eq.${id}` });
+}
+
+// ── Count curso_modulos for a modulo ───────────────────────────────
+
+export async function countCursoModulosByModulo(moduloId: string): Promise<number> {
+  const rows = await supabaseSelect<{ id: string }>("curso_modulos", {
+    select: "id",
+    modulo_id: `eq.${moduloId}`,
+  });
+  return rows.length;
 }

@@ -212,16 +212,7 @@ const Inicio = () => {
     cursosQuery.isError || perfisQuery.isError || feriadosQuery.isError;
 
   return (
-    <div className="max-w-[900px] mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-heading font-bold text-primary">
-          Gerador de Cronograma de Curso
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Selecione o curso e informe os dados do aluno para gerar
-          automaticamente o cronograma completo.
-        </p>
-      </div>
+    <div>
 
       {!isSupabaseConfigured() && (
         <Card className="p-4 mb-6 border-amber-500/40 bg-amber-500/5">

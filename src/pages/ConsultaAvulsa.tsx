@@ -48,16 +48,7 @@ const ConsultaAvulsa = () => {
   };
 
   return (
-    <div className="max-w-[900px] mx-auto">
-      {/* Title */}
-      <div className="text-center mb-10">
-        <h2 className="text-2xl md:text-3xl font-heading font-bold text-primary">
-          Consulta Avulsa de Cronograma
-        </h2>
-        <p className="mt-2 text-muted-foreground font-body">
-          Preencha as informações abaixo para calcular automaticamente as datas de cada módulo.
-        </p>
-      </div>
+    <div>
 
       {/* Main Card */}
       <Card className="p-6 md:p-8 shadow-md space-y-10">
