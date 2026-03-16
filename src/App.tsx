@@ -4,11 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "./components/AppLayout";
-import Inicio from "./pages/Inicio";
-import ConsultaAvulsa from "./pages/ConsultaAvulsa";
-import Cursos from "./pages/Cursos";
-import Modulos from "./pages/Modulos";
-import Feriados from "./pages/Feriados";
+import Home from "./pages/Home";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,11 +18,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Inicio />} />
-            <Route path="/consulta-avulsa" element={<ConsultaAvulsa />} />
-            <Route path="/cursos" element={<Cursos />} />
-            <Route path="/modulos" element={<Modulos />} />
-            <Route path="/feriados" element={<Feriados />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/admin" element={<Admin />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
