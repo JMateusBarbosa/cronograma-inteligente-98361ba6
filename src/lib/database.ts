@@ -8,10 +8,26 @@ export interface Curso {
 
 export interface Modulo {
   id: string;
-  curso_id: string;
   nome: string;
+}
+
+export interface CursoModulo {
+  id: string;
+  curso_id: string;
+  modulo_id: string;
   ordem: number;
   carga_horaria: number;
+  modulos: { nome: string };
+}
+
+/** Flattened module info for UI consumption */
+export interface CursoModuloFlat {
+  id: string;
+  curso_id: string;
+  modulo_id: string;
+  ordem: number;
+  carga_horaria: number;
+  nome: string;
 }
 
 export interface PerfilAula {
@@ -42,12 +58,21 @@ export async function getCursos(): Promise<Curso[]> {
   });
 }
 
-export async function getModulosByCurso(cursoId: string): Promise<Modulo[]> {
-  return supabaseSelect<Modulo>("modulos", {
-    select: "id,curso_id,nome,ordem,carga_horaria",
+export async function getModulosByCurso(cursoId: string): Promise<CursoModuloFlat[]> {
+  const rows = await supabaseSelect<CursoModulo>("curso_modulos", {
+    select: "id,curso_id,modulo_id,ordem,carga_horaria,modulos(nome)",
     curso_id: `eq.${cursoId}`,
     order: "ordem.asc",
   });
+
+  return rows.map((r) => ({
+    id: r.id,
+    curso_id: r.curso_id,
+    modulo_id: r.modulo_id,
+    ordem: r.ordem,
+    carga_horaria: r.carga_horaria,
+    nome: r.modulos?.nome ?? "Módulo sem nome",
+  }));
 }
 
 export async function getPerfisAula(): Promise<PerfilAula[]> {
