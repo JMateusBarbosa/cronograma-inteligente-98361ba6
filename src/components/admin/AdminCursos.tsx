@@ -134,14 +134,15 @@ const AdminCursos = () => {
   };
 
   // Sync grade when cursoModulos load
-  const prevModulosData = cursoModulosQuery.data;
-  if (prevModulosData && selectedCursoId && !isNewCurso && grade.length === 0 && prevModulosData.length > 0) {
-    setGrade(prevModulosData.map((m) => ({
-      modulo_id: m.modulo_id,
-      carga_horaria: m.carga_horaria,
-      tempId: m.id,
-    })));
-  }
+  useEffect(() => {
+    if (cursoModulosQuery.data && selectedCursoId && !isNewCurso) {
+      setGrade(cursoModulosQuery.data.map((m) => ({
+        modulo_id: m.modulo_id,
+        carga_horaria: m.carga_horaria,
+        tempId: m.id,
+      })));
+    }
+  }, [cursoModulosQuery.data, selectedCursoId, isNewCurso]);
 
   const handleNewCurso = () => {
     setIsNewCurso(true);
