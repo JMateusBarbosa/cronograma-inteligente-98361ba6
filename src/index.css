@@ -63,6 +63,29 @@
   }
 }
 
+/* Active tab indicator */
+@layer components {
+  .tab-active-indicator {
+    position: relative;
+  }
+  .tab-active-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 8px;
+    right: 8px;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: hsl(213 100% 20%);
+    animation: tab-slide-in 0.2s ease-out;
+  }
+
+  @keyframes tab-slide-in {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+}
+
 @keyframes module-row-in {
   0% {
     opacity: 0;

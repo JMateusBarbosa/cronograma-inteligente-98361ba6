@@ -1,16 +1,22 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import CourseForm from "@/components/CourseForm";
 import ModulesSection from "@/components/ModulesSection";
 import type { ModuleRow } from "@/components/ModulesSection";
 import ScheduleResultDialog from "@/components/ScheduleResultDialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { calcularCronograma, type ScheduleResult } from "@/lib/scheduleCalculator";
+import {
+  calcularCronograma,
+  type ScheduleResult,
+  type HolidayConfig,
+} from "@/lib/scheduleCalculator";
+import { getFeriados, getPerfisAula, getPerfilDias } from "@/lib/database";
 
 const ConsultaAvulsa = () => {
   const [startDate, setStartDate] = useState<Date>();
-  const [profile, setProfile] = useState<string>();
+  const [profileId, setProfileId] = useState<string>();
   const [modules, setModules] = useState<ModuleRow[]>([
     { id: 1, name: "", hours: "", isNew: false },
   ]);
@@ -18,13 +24,29 @@ const ConsultaAvulsa = () => {
   const [results, setResults] = useState<ScheduleResult[]>([]);
   const [showResults, setShowResults] = useState(false);
 
+  const perfisQuery = useQuery({ queryKey: ["perfis-aula"], queryFn: getPerfisAula });
+  const feriadosQuery = useQuery({ queryKey: ["feriados"], queryFn: getFeriados });
+  const perfilDiasQuery = useQuery({
+    queryKey: ["perfil-dias", profileId],
+    queryFn: () => getPerfilDias(profileId!),
+    enabled: !!profileId,
+  });
+
+  const selectedProfile = perfisQuery.data?.find((p) => p.id === profileId);
+
   const handleGenerate = () => {
     if (!startDate) {
       toast.error("Selecione a data de início do curso.");
       return;
     }
-    if (!profile) {
+    if (!profileId || !selectedProfile) {
       toast.error("Selecione o perfil de dias de aula.");
+      return;
+    }
+
+    const perfilDias = perfilDiasQuery.data ?? [];
+    if (perfilDias.length === 0) {
+      toast.error("O perfil selecionado não possui dias de aula configurados.");
       return;
     }
 
@@ -42,21 +64,39 @@ const ConsultaAvulsa = () => {
       hours: Number(m.hours),
     }));
 
-    const schedule = calcularCronograma(startDate, profile, input);
+    const holidays: HolidayConfig[] = (feriadosQuery.data ?? []).map((f) => ({
+      date: f.data,
+      isRecurring: f.is_recurring,
+      month: f.month,
+      day: f.day,
+    }));
+
+    const schedule = calcularCronograma(
+      startDate,
+      selectedProfile.nome,
+      input,
+      holidays,
+      {
+        daysOfWeek: perfilDias.map((d) => d.dia_semana),
+        hoursPerDay: selectedProfile.horas_por_dia,
+      }
+    );
+
     setResults(schedule);
     setShowResults(true);
   };
 
   return (
     <div>
-
       {/* Main Card */}
       <Card className="p-6 md:p-8 shadow-md space-y-10">
         <CourseForm
           startDate={startDate}
           onStartDateChange={setStartDate}
-          profile={profile}
-          onProfileChange={setProfile}
+          profileId={profileId}
+          onProfileChange={setProfileId}
+          perfis={perfisQuery.data ?? []}
+          isLoadingPerfis={perfisQuery.isLoading}
         />
         <ModulesSection modules={modules} onModulesChange={setModules} />
       </Card>
@@ -73,12 +113,12 @@ const ConsultaAvulsa = () => {
       </div>
 
       {/* Results dialog */}
-      {startDate && profile && (
+      {startDate && selectedProfile && (
         <ScheduleResultDialog
           open={showResults}
           onOpenChange={setShowResults}
           results={results}
-          profile={profile}
+          profile={selectedProfile.nome}
           startDate={startDate}
         />
       )}

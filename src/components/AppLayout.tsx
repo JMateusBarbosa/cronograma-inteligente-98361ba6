@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import AppSidebar from "./AppSidebar";
+import logo from "@/assets/logo.png";
 
 const AppLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -9,7 +10,7 @@ const AppLayout = () => {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="h-[70px] bg-primary shrink-0 z-30 px-4 md:px-[60px] flex items-center gap-3">
+      <header className="h-[90px] bg-primary shrink-0 z-30 px-4 md:px-[60px] flex items-center">
         {/* Mobile menu button */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -20,14 +21,24 @@ const AppLayout = () => {
         </button>
 
         {/* Logo */}
-        <div className="h-10 w-10 rounded bg-accent flex items-center justify-center shrink-0">
-          <span className="text-accent-foreground font-heading font-bold text-lg">SC</span>
+        <div className="h-14 w-14 rounded-lg bg-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+          <img src={logo} alt="Indústria do Saber" className="h-12 w-12 object-contain" />
         </div>
 
-        {/* System name */}
-        <h1 className="text-primary-foreground font-heading text-sm md:text-xl font-semibold tracking-tight leading-tight truncate">
-          Sistema de Cronograma de Cursos
-        </h1>
+        {/* System name - centered */}
+        <div className="flex-1 flex justify-center">
+          <div className="text-center">
+            <h1 className="text-primary-foreground font-heading text-lg md:text-2xl font-bold tracking-tight leading-tight">
+              Sistema de Cronograma de Cursos
+            </h1>
+            <p className="text-primary-foreground/60 text-xs md:text-sm font-heading hidden sm:block">
+              Indústria do Saber — Centro de Formação Profissional
+            </p>
+          </div>
+        </div>
+
+        {/* Spacer to balance the logo on the left */}
+        <div className="h-14 w-14 shrink-0 hidden md:block" />
       </header>
 
       {/* Body: sidebar + content */}

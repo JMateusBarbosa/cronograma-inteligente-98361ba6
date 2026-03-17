@@ -17,7 +17,7 @@ const AppSidebar = ({ mobileOpen, onMobileClose }: AppSidebarProps) => {
     <>
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 top-[70px] bg-foreground/40 z-20"
+          className="md:hidden fixed inset-0 top-[90px] bg-foreground/40 z-20"
           onClick={onMobileClose}
         />
       )}
@@ -25,7 +25,7 @@ const AppSidebar = ({ mobileOpen, onMobileClose }: AppSidebarProps) => {
       <aside
         className={cn(
           "w-[220px] bg-primary shrink-0 flex flex-col z-20 transition-transform duration-200",
-          "fixed md:relative inset-y-0 left-0 top-[70px] md:top-0",
+          "fixed md:relative inset-y-0 left-0 top-[90px] md:top-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >

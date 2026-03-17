@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Save, X, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Save, X, Loader2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,6 @@ import {
   saveCursoModulos,
   createModulo,
   type Curso,
-  type Modulo,
   type CursoModuloFlat,
 } from "@/lib/database";
 
@@ -35,6 +34,8 @@ interface GradeRow {
   carga_horaria: number;
   tempId: string;
 }
+
+const PAGE_SIZE = 10;
 
 const AdminCursos = () => {
   const queryClient = useQueryClient();
@@ -45,6 +46,8 @@ const AdminCursos = () => {
   const [deleteTarget, setDeleteTarget] = useState<Curso | null>(null);
   const [newModuloName, setNewModuloName] = useState("");
   const [showNewModulo, setShowNewModulo] = useState(false);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const cursosQuery = useQuery({ queryKey: ["cursos"], queryFn: getCursos });
   const modulosQuery = useQuery({ queryKey: ["modulos-all"], queryFn: getModulos });
@@ -120,7 +123,6 @@ const AdminCursos = () => {
       queryClient.invalidateQueries({ queryKey: ["modulos-all"] });
       setShowNewModulo(false);
       setNewModuloName("");
-      // Add to grade
       setGrade([...grade, { modulo_id: modulo.id, carga_horaria: 1, tempId: crypto.randomUUID() }]);
       toast.success("Módulo criado e adicionado!");
     },
@@ -133,7 +135,6 @@ const AdminCursos = () => {
     setIsNewCurso(false);
   };
 
-  // Sync grade when cursoModulos load
   useEffect(() => {
     if (cursoModulosQuery.data && selectedCursoId && !isNewCurso) {
       setGrade(cursoModulosQuery.data.map((m) => ({
@@ -173,61 +174,109 @@ const AdminCursos = () => {
 
   const totalCarga = grade.reduce((s, g) => s + (g.carga_horaria || 0), 0);
   const canSave = editName.trim().length > 0 && grade.every((g) => g.modulo_id && g.carga_horaria > 0);
-  const cursos = cursosQuery.data ?? [];
+  const allCursos = cursosQuery.data ?? [];
   const allModulos = modulosQuery.data ?? [];
   const isSaving = createCursoMut.isPending || updateCursoMut.isPending;
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return allCursos;
+    const q = search.toLowerCase();
+    return allCursos.filter((c) => c.nome.toLowerCase().includes(q));
+  }, [allCursos, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
 
   const usedModuloIds = grade.map((g) => g.modulo_id).filter(Boolean);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {cursos.length} curso{cursos.length !== 1 ? "s" : ""} cadastrado{cursos.length !== 1 ? "s" : ""}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground shrink-0">
+          {allCursos.length} curso{allCursos.length !== 1 ? "s" : ""} cadastrado{allCursos.length !== 1 ? "s" : ""}
         </p>
-        <Button onClick={handleNewCurso} className="bg-accent text-accent-foreground hover:bg-accent/80 gap-2">
-          <Plus className="h-4 w-4" /> Novo curso
-        </Button>
+        <div className="flex items-center gap-2 flex-1 max-w-md ml-auto">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Pesquisar curso..."
+              className="pl-9 bg-input border-border"
+            />
+          </div>
+          <Button onClick={handleNewCurso} className="bg-accent text-accent-foreground hover:bg-accent/80 gap-2 shrink-0">
+            <Plus className="h-4 w-4" /> Novo curso
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-4">
         {/* Course list */}
-        <Card className="overflow-hidden">
-          {cursosQuery.isLoading ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : cursos.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground text-sm">Nenhum curso cadastrado.</div>
-          ) : (
-            <div className="divide-y divide-border">
-              {cursos.map((c) => (
-                <div
-                  key={c.id}
-                  className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-muted/30 ${
-                    selectedCursoId === c.id ? "bg-primary/5 border-l-2 border-l-primary" : ""
-                  }`}
-                  onClick={() => handleSelectCurso(c)}
-                >
-                  <div>
-                    <p className="font-medium text-foreground text-sm">{c.nome}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {c.carga_horaria_total ? `${c.carga_horaria_total}h` : "Carga via grade"}
-                    </p>
+        <div className="space-y-3">
+          <Card className="overflow-hidden">
+            {cursosQuery.isLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground text-sm">
+                {search ? "Nenhum curso encontrado." : "Nenhum curso cadastrado."}
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {paged.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-muted/30 ${
+                      selectedCursoId === c.id ? "bg-primary/5 border-l-2 border-l-primary" : ""
+                    }`}
+                    onClick={() => handleSelectCurso(c)}
+                  >
+                    <div>
+                      <p className="font-medium text-foreground text-sm">{c.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {c.carga_horaria_total ? `${c.carga_horaria_total}h` : "Carga via grade"}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleSelectCurso(c); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleSelectCurso(c); }}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="h-8 w-8 p-0">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground px-2">{currentPage}/{totalPages}</span>
+                <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-8 w-8 p-0">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
-        </Card>
+        </div>
 
         {/* Editor panel */}
         {(selectedCursoId || isNewCurso) && (
