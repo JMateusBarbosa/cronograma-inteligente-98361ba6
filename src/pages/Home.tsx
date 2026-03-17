@@ -16,12 +16,18 @@ const Home = () => {
       </div>
 
       <Tabs defaultValue="curso" className="w-full">
-        <TabsList className="w-full grid grid-cols-2 mb-6">
-          <TabsTrigger value="curso" className="gap-2">
+        <TabsList className="w-full grid grid-cols-2 mb-6 h-12 bg-muted/60 p-1">
+          <TabsTrigger
+            value="curso"
+            className="gap-2 data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:font-semibold data-[state=active]:tab-active-indicator transition-all"
+          >
             <GraduationCap className="h-4 w-4" />
             Gerador por Curso
           </TabsTrigger>
-          <TabsTrigger value="avulsa" className="gap-2">
+          <TabsTrigger
+            value="avulsa"
+            className="gap-2 data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:font-semibold data-[state=active]:tab-active-indicator transition-all"
+          >
             <Calculator className="h-4 w-4" />
             Consulta Avulsa
           </TabsTrigger>

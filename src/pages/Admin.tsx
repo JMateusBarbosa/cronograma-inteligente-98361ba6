@@ -17,16 +17,25 @@ const Admin = () => {
       </div>
 
       <Tabs defaultValue="cursos" className="w-full">
-        <TabsList className="w-full grid grid-cols-3 mb-6">
-          <TabsTrigger value="cursos" className="gap-2">
+        <TabsList className="w-full grid grid-cols-3 mb-6 h-12 bg-muted/60 p-1">
+          <TabsTrigger
+            value="cursos"
+            className="gap-2 data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:font-semibold data-[state=active]:tab-active-indicator transition-all"
+          >
             <BookOpen className="h-4 w-4" />
             Cursos
           </TabsTrigger>
-          <TabsTrigger value="modulos" className="gap-2">
+          <TabsTrigger
+            value="modulos"
+            className="gap-2 data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:font-semibold data-[state=active]:tab-active-indicator transition-all"
+          >
             <Layers className="h-4 w-4" />
             Módulos
           </TabsTrigger>
-          <TabsTrigger value="feriados" className="gap-2">
+          <TabsTrigger
+            value="feriados"
+            className="gap-2 data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:font-semibold data-[state=active]:tab-active-indicator transition-all"
+          >
             <CalendarOff className="h-4 w-4" />
             Feriados
           </TabsTrigger>

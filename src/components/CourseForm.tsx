@@ -16,23 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-export const PERFIS = [
-  "Segunda e Quarta (1h por dia)",
-  "Terça e Quinta (1h por dia)",
-  "Sábado (2h)",
-  "Sexta-feira (2h)",
-  "Segunda a Quinta (1h por dia)",
-];
+import type { PerfilAula } from "@/lib/database";
 
 interface Props {
   startDate: Date | undefined;
   onStartDateChange: (d: Date | undefined) => void;
-  profile: string | undefined;
+  profileId: string | undefined;
   onProfileChange: (p: string) => void;
+  perfis: PerfilAula[];
+  isLoadingPerfis: boolean;
 }
 
-const CourseForm = ({ startDate, onStartDateChange, profile, onProfileChange }: Props) => {
+const CourseForm = ({ startDate, onStartDateChange, profileId, onProfileChange, perfis, isLoadingPerfis }: Props) => {
   return (
     <div className="space-y-6">
       {/* Data de início */}
@@ -76,14 +71,14 @@ const CourseForm = ({ startDate, onStartDateChange, profile, onProfileChange }: 
         <label className="text-sm font-medium font-body text-foreground">
           Dias de aula do aluno
         </label>
-        <Select value={profile} onValueChange={onProfileChange}>
+        <Select value={profileId} onValueChange={onProfileChange}>
           <SelectTrigger className="w-full bg-input border-border">
-            <SelectValue placeholder="Selecione o perfil de aulas" />
+            <SelectValue placeholder={isLoadingPerfis ? "Carregando perfis..." : "Selecione o perfil de aulas"} />
           </SelectTrigger>
           <SelectContent>
-            {PERFIS.map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
+            {perfis.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {`${p.nome} (${p.horas_por_dia}h por dia)`}
               </SelectItem>
             ))}
           </SelectContent>
