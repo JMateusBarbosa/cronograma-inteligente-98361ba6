@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { getFeriados, createFeriado, updateFeriado, deleteFeriado, type Feriado } from "@/lib/database";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const PAGE_SIZE = 10;
@@ -32,6 +33,7 @@ interface FeriadoForm {
 const emptyForm: FeriadoForm = { descricao: "", tipo: "recorrente", month: "", day: "", data: "" };
 
 const AdminFeriados = () => {
+  const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FeriadoForm>(emptyForm);
@@ -199,11 +201,11 @@ const AdminFeriados = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground shrink-0">
           {allFeriados.length} feriado{allFeriados.length !== 1 ? "s" : ""} cadastrado{allFeriados.length !== 1 ? "s" : ""}
         </p>
-        <div className="flex items-center gap-2 flex-1 max-w-md ml-auto">
+        <div className="flex items-center gap-2 w-full sm:flex-1 sm:max-w-md sm:ml-auto">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -214,7 +216,7 @@ const AdminFeriados = () => {
             />
           </div>
           <Button onClick={() => { setShowNew(true); setForm(emptyForm); }} className="bg-accent text-accent-foreground hover:bg-accent/80 gap-2 shrink-0">
-            <Plus className="h-4 w-4" /> Novo feriado
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Novo feriado</span><span className="sm:hidden">Novo</span>
           </Button>
         </div>
       </div>
@@ -231,86 +233,116 @@ const AdminFeriados = () => {
         <Card className="p-10 text-center text-muted-foreground">
           {search ? "Nenhum feriado encontrado para esta pesquisa." : "Nenhum feriado cadastrado."}
         </Card>
+      ) : isMobile ? (
+        /* Mobile: card-based list */
+        <div className="space-y-2">
+          {paged.map((f) => (
+            <Card key={f.id} className="p-3">
+              {editingId === f.id ? (
+                <FormFields onSave={() => updateMut.mutate(f.id)} saving={updateMut.isPending} />
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground text-sm">{f.descricao ?? "Sem descrição"}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-muted-foreground">{formatFeriadoDate(f)}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${f.is_recurring ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                        {f.is_recurring ? "Recorrente" : "Pontual"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => handleEdit(f)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(f)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
       ) : (
-        <>
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/50 border-b border-border">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Data</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tipo</th>
-                  <th className="py-3 px-4 w-[120px] text-right font-medium text-muted-foreground">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.map((f) => (
-                  <tr key={f.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                    {editingId === f.id ? (
-                      <td colSpan={4} className="p-3">
-                        <FormFields onSave={() => updateMut.mutate(f.id)} saving={updateMut.isPending} />
+        /* Desktop: table */
+        <Card className="overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Data</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tipo</th>
+                <th className="py-3 px-4 w-[120px] text-right font-medium text-muted-foreground">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map((f) => (
+                <tr key={f.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                  {editingId === f.id ? (
+                    <td colSpan={4} className="p-3">
+                      <FormFields onSave={() => updateMut.mutate(f.id)} saving={updateMut.isPending} />
+                    </td>
+                  ) : (
+                    <>
+                      <td className="py-3 px-4 font-medium text-foreground">{formatFeriadoDate(f)}</td>
+                      <td className="py-3 px-4 text-foreground">{f.descricao ?? "—"}</td>
+                      <td className="py-3 px-4">
+                        <span className={`text-xs px-2 py-1 rounded-full ${f.is_recurring ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                          {f.is_recurring ? "Recorrente" : "Pontual"}
+                        </span>
                       </td>
-                    ) : (
-                      <>
-                        <td className="py-3 px-4 font-medium text-foreground">{formatFeriadoDate(f)}</td>
-                        <td className="py-3 px-4 text-foreground">{f.descricao ?? "—"}</td>
-                        <td className="py-3 px-4">
-                          <span className={`text-xs px-2 py-1 rounded-full ${f.is_recurring ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            {f.is_recurring ? "Recorrente" : "Pontual"}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => handleEdit(f)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(f)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(f)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(f)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-muted-foreground">
-                Mostrando {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
-              </p>
-              <div className="flex items-center gap-1">
-                <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="h-8 w-8 p-0">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                  .map((p, idx, arr) => (
-                    <span key={p} className="flex items-center">
-                      {idx > 0 && arr[idx - 1] !== p - 1 && (
-                        <span className="text-xs text-muted-foreground px-1">…</span>
-                      )}
-                      <Button
-                        size="sm"
-                        variant={p === currentPage ? "default" : "outline"}
-                        onClick={() => setPage(p)}
-                        className="h-8 w-8 p-0 text-xs"
-                      >
-                        {p}
-                      </Button>
-                    </span>
-                  ))}
-                <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-8 w-8 p-0">
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-xs text-muted-foreground">
+            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="h-8 w-8 p-0">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((p, idx, arr) => (
+                <span key={p} className="flex items-center">
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span className="text-xs text-muted-foreground px-1">…</span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={p === currentPage ? "default" : "outline"}
+                    onClick={() => setPage(p)}
+                    className="h-8 w-8 p-0 text-xs"
+                  >
+                    {p}
+                  </Button>
+                </span>
+              ))}
+            <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-8 w-8 p-0">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

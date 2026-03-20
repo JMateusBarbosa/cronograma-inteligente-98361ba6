@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarIcon,
+  CalendarX2,
   FileDown,
   Printer,
   RefreshCw,
@@ -31,6 +32,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import {
   calcularCronograma,
@@ -45,10 +51,13 @@ import {
   getPerfisAula,
 } from "@/lib/database";
 import { isSupabaseConfigured } from "@/lib/supabaseRest";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const fmt = (d: Date) => format(d, "dd/MM/yyyy", { locale: ptBR });
+const fmtLong = (d: Date) => format(d, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
 const Inicio = () => {
+  const isMobile = useIsMobile();
   const [studentName, setStudentName] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState<string | undefined>();
   const [profileId, setProfileId] = useState<string | undefined>();
@@ -58,20 +67,9 @@ const Inicio = () => {
   const [formKey, setFormKey] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  const cursosQuery = useQuery({
-    queryKey: ["cursos"],
-    queryFn: getCursos,
-  });
-
-  const perfisQuery = useQuery({
-    queryKey: ["perfis-aula"],
-    queryFn: getPerfisAula,
-  });
-
-  const feriadosQuery = useQuery({
-    queryKey: ["feriados"],
-    queryFn: getFeriados,
-  });
+  const cursosQuery = useQuery({ queryKey: ["cursos"], queryFn: getCursos });
+  const perfisQuery = useQuery({ queryKey: ["perfis-aula"], queryFn: getPerfisAula });
+  const feriadosQuery = useQuery({ queryKey: ["feriados"], queryFn: getFeriados });
 
   const modulosQuery = useQuery({
     queryKey: ["modulos", selectedCourseId],
@@ -170,11 +168,15 @@ const Inicio = () => {
   const handleExportCSV = () => {
     if (results.length === 0) return;
 
-    const header = "Ordem;Módulo;Carga Horária;Data de Início;Data de Término\n";
+    const header = "Ordem;Módulo;Carga Horária;Data de Início;Data de Término;Feriados\n";
     const rows = results
       .map(
         (r, i) =>
-          `${i + 1};${r.module};${r.hours}h;${fmt(r.startDate)};${fmt(r.endDate)}`
+          `${i + 1};${r.module};${r.hours}h;${fmt(r.startDate)};${fmt(r.endDate)};${
+            r.holidaysImpacted.length > 0
+              ? r.holidaysImpacted.map((h) => fmt(h)).join(", ")
+              : "Nenhum"
+          }`
       )
       .join("\n");
 
@@ -207,13 +209,13 @@ const Inicio = () => {
 
   const totalClassDays = results.reduce((s, r) => s + r.classDaysUsed, 0);
   const totalResultHours = results.reduce((s, r) => s + r.hours, 0);
+  const totalHolidays = results.reduce((s, r) => s + r.holidaysImpacted.length, 0);
 
   const hasAnyQueryError =
     cursosQuery.isError || perfisQuery.isError || feriadosQuery.isError;
 
   return (
     <div>
-
       {!isSupabaseConfigured() && (
         <Card className="p-4 mb-6 border-amber-500/40 bg-amber-500/5">
           <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -230,7 +232,7 @@ const Inicio = () => {
         </Card>
       )}
 
-      <Card key={formKey} className="p-6 md:p-8 shadow-md">
+      <Card key={formKey} className="p-5 sm:p-6 md:p-8 shadow-md">
         <div className="space-y-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -360,7 +362,7 @@ const Inicio = () => {
             Cronograma do Curso
           </h2>
 
-          <Card className="p-5 mb-6 shadow-sm">
+          <Card className="p-4 sm:p-5 mb-6 shadow-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               {studentName && (
                 <div className="flex items-center gap-2">
@@ -389,9 +391,10 @@ const Inicio = () => {
             {results.length > 0 && (
               <>
                 <Separator className="my-3" />
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <SummaryCard label="Total de Módulos" value={String(results.length)} />
                   <SummaryCard label="Dias de Aula" value={String(totalClassDays)} />
+                  <SummaryCard label="Feriados Impactados" value={String(totalHolidays)} />
                   <SummaryCard
                     label="Previsão de Término"
                     value={fmt(results[results.length - 1].endDate)}
@@ -402,36 +405,110 @@ const Inicio = () => {
           </Card>
 
           <Card className="shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-primary text-primary-foreground">
-                    <th className="py-3 px-4 text-left font-medium">Ordem</th>
-                    <th className="py-3 px-4 text-left font-medium">Módulo</th>
-                    <th className="py-3 px-4 text-left font-medium">Carga Horária</th>
-                    <th className="py-3 px-4 text-left font-medium">Data de Início</th>
-                    <th className="py-3 px-4 text-left font-medium">Data de Término</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((r, i) => (
-                    <tr
-                      key={i}
-                      className={cn(
-                        "border-b border-border/50 transition-colors",
-                        i % 2 === 0 ? "bg-card" : "bg-muted/30"
+            {isMobile ? (
+              /* Mobile: card-based layout */
+              <div className="divide-y divide-border">
+                {results.map((r, i) => (
+                  <div key={i} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground font-medium">#{i + 1}</span>
+                      {r.holidaysImpacted.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs text-destructive">
+                          <CalendarX2 className="h-3 w-3" />
+                          {r.holidaysImpacted.length} feriado{r.holidaysImpacted.length > 1 ? "s" : ""}
+                        </span>
                       )}
-                    >
-                      <td className="py-3 px-4 text-muted-foreground font-medium">{i + 1}</td>
-                      <td className="py-3 px-4 font-medium text-foreground">{r.module}</td>
-                      <td className="py-3 px-4">{r.hours}h</td>
-                      <td className="py-3 px-4">{fmt(r.startDate)}</td>
-                      <td className="py-3 px-4">{fmt(r.endDate)}</td>
+                    </div>
+                    <p className="font-medium text-foreground">{r.module}</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Carga</p>
+                        <p className="font-medium">{r.hours}h</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Aulas</p>
+                        <p className="font-medium">{r.classDaysUsed} dias</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Início</p>
+                        <p className="font-medium">{fmt(r.startDate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Término</p>
+                        <p className="font-medium">{fmt(r.endDate)}</p>
+                      </div>
+                    </div>
+                    {r.holidaysImpacted.length > 0 && (
+                      <div className="pt-1">
+                        <p className="text-xs text-muted-foreground mb-1">Feriados no período:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {r.holidaysImpacted.map((h, j) => (
+                            <span key={j} className="text-xs bg-destructive/10 text-destructive px-2 py-0.5 rounded-full">
+                              {fmt(h)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Desktop: table layout */
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-primary text-primary-foreground">
+                      <th className="py-3 px-4 text-left font-medium">Ordem</th>
+                      <th className="py-3 px-4 text-left font-medium">Módulo</th>
+                      <th className="py-3 px-4 text-left font-medium">Carga</th>
+                      <th className="py-3 px-4 text-left font-medium">Início</th>
+                      <th className="py-3 px-4 text-left font-medium">Término</th>
+                      <th className="py-3 px-4 text-left font-medium">Aulas</th>
+                      <th className="py-3 px-4 text-center font-medium">Feriados</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {results.map((r, i) => (
+                      <tr
+                        key={i}
+                        className={cn(
+                          "border-b border-border/50 transition-colors",
+                          i % 2 === 0 ? "bg-card" : "bg-muted/30"
+                        )}
+                      >
+                        <td className="py-3 px-4 text-muted-foreground font-medium">{i + 1}</td>
+                        <td className="py-3 px-4 font-medium text-foreground">{r.module}</td>
+                        <td className="py-3 px-4">{r.hours}h</td>
+                        <td className="py-3 px-4">{fmt(r.startDate)}</td>
+                        <td className="py-3 px-4">{fmt(r.endDate)}</td>
+                        <td className="py-3 px-4">{r.classDaysUsed}</td>
+                        <td className="py-3 px-4 text-center">
+                          {r.holidaysImpacted.length > 0 ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-1 text-destructive cursor-help">
+                                  <CalendarX2 className="h-3.5 w-3.5" />
+                                  {r.holidaysImpacted.length}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-xs">
+                                <p className="font-medium mb-1">Feriados no período:</p>
+                                {r.holidaysImpacted.map((h, j) => (
+                                  <p key={j} className="text-xs">{fmtLong(h)}</p>
+                                ))}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
 
           <div className="mt-6 flex flex-wrap justify-center gap-3 print:hidden">
@@ -441,7 +518,7 @@ const Inicio = () => {
             </Button>
             <Button variant="outline" onClick={handlePrint} className="gap-2">
               <Printer className="h-4 w-4" />
-              Imprimir cronograma
+              Imprimir
             </Button>
             <Button variant="outline" onClick={handleNewQuery} className="gap-2">
               <RefreshCw className="h-4 w-4" />
