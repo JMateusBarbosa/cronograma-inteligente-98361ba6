@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Save, X, Loader2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Save, X, Loader2, Search, ChevronLeft, ChevronRight, Clock, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,9 @@ import {
   deleteCurso,
   saveCursoModulos,
   createModulo,
+  getAllCursoModulosSummary,
+  hoursToMonths,
   type Curso,
-  type CursoModuloFlat,
 } from "@/lib/database";
 
 interface GradeRow {
@@ -51,6 +52,7 @@ const AdminCursos = () => {
 
   const cursosQuery = useQuery({ queryKey: ["cursos"], queryFn: getCursos });
   const modulosQuery = useQuery({ queryKey: ["modulos-all"], queryFn: getModulos });
+  const summaryQuery = useQuery({ queryKey: ["cursos-summary"], queryFn: getAllCursoModulosSummary });
 
   const cursoModulosQuery = useQuery({
     queryKey: ["curso-modulos-edit", selectedCursoId],
@@ -61,6 +63,7 @@ const AdminCursos = () => {
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["cursos"] });
     queryClient.invalidateQueries({ queryKey: ["curso-modulos-edit"] });
+    queryClient.invalidateQueries({ queryKey: ["cursos-summary"] });
     queryClient.invalidateQueries({ queryKey: ["modulos"] });
   };
 
@@ -176,6 +179,7 @@ const AdminCursos = () => {
   const canSave = editName.trim().length > 0 && grade.every((g) => g.modulo_id && g.carga_horaria > 0);
   const allCursos = cursosQuery.data ?? [];
   const allModulos = modulosQuery.data ?? [];
+  const summaryMap = summaryQuery.data ?? {};
   const isSaving = createCursoMut.isPending || updateCursoMut.isPending;
 
   const filtered = useMemo(() => {
@@ -195,13 +199,23 @@ const AdminCursos = () => {
 
   const usedModuloIds = grade.map((g) => g.modulo_id).filter(Boolean);
 
+  const getCursoInfo = (cursoId: string) => {
+    const summary = summaryMap[cursoId];
+    if (!summary) return { hours: 0, months: 0, modules: 0 };
+    return {
+      hours: summary.totalHours,
+      months: hoursToMonths(summary.totalHours),
+      modules: summary.moduleCount,
+    };
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground shrink-0">
           {allCursos.length} curso{allCursos.length !== 1 ? "s" : ""} cadastrado{allCursos.length !== 1 ? "s" : ""}
         </p>
-        <div className="flex items-center gap-2 flex-1 max-w-md ml-auto">
+        <div className="flex items-center gap-2 w-full sm:flex-1 sm:max-w-md sm:ml-auto">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -212,7 +226,7 @@ const AdminCursos = () => {
             />
           </div>
           <Button onClick={handleNewCurso} className="bg-accent text-accent-foreground hover:bg-accent/80 gap-2 shrink-0">
-            <Plus className="h-4 w-4" /> Novo curso
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Novo curso</span><span className="sm:hidden">Novo</span>
           </Button>
         </div>
       </div>
@@ -231,30 +245,43 @@ const AdminCursos = () => {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {paged.map((c) => (
-                  <div
-                    key={c.id}
-                    className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-muted/30 ${
-                      selectedCursoId === c.id ? "bg-primary/5 border-l-2 border-l-primary" : ""
-                    }`}
-                    onClick={() => handleSelectCurso(c)}
-                  >
-                    <div>
-                      <p className="font-medium text-foreground text-sm">{c.nome}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {c.carga_horaria_total ? `${c.carga_horaria_total}h` : "Carga via grade"}
-                      </p>
+                {paged.map((c) => {
+                  const info = getCursoInfo(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-muted/30 ${
+                        selectedCursoId === c.id ? "bg-primary/5 border-l-2 border-l-primary" : ""
+                      }`}
+                      onClick={() => handleSelectCurso(c)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground text-sm truncate">{c.nome}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {info.hours}h
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {info.months} {info.months === 1 ? "mês" : "meses"}
+                          </span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Layers className="h-3 w-3" />
+                            {info.modules} mód.
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0 ml-2">
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleSelectCurso(c); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleSelectCurso(c); }}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -280,7 +307,7 @@ const AdminCursos = () => {
 
         {/* Editor panel */}
         {(selectedCursoId || isNewCurso) && (
-          <Card className="p-5 space-y-5">
+          <Card className="p-4 sm:p-5 space-y-5">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Nome do curso</label>
               <Input
@@ -293,9 +320,12 @@ const AdminCursos = () => {
 
             {/* Grade curricular */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-medium text-foreground">Grade curricular</h3>
-                <span className="text-xs text-muted-foreground">Carga total: {totalCarga}h</span>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Carga total: <strong className="text-foreground">{totalCarga}h</strong></span>
+                  <span>Duração: <strong className="text-foreground">{hoursToMonths(totalCarga)} {hoursToMonths(totalCarga) === 1 ? "mês" : "meses"}</strong></span>
+                </div>
               </div>
 
               {grade.length > 0 && (
@@ -310,9 +340,9 @@ const AdminCursos = () => {
                           <span className="text-xs">▼</span>
                         </Button>
                       </div>
-                      <span className="text-xs text-muted-foreground w-6 text-center">{i + 1}</span>
+                      <span className="text-xs text-muted-foreground w-6 text-center shrink-0">{i + 1}</span>
                       <Select value={row.modulo_id} onValueChange={(v) => updateGradeRow(row.tempId, "modulo_id", v)}>
-                        <SelectTrigger className="flex-1 bg-input border-border text-sm">
+                        <SelectTrigger className="flex-1 bg-input border-border text-sm min-w-0">
                           <SelectValue placeholder="Selecionar módulo" />
                         </SelectTrigger>
                         <SelectContent>
@@ -328,10 +358,10 @@ const AdminCursos = () => {
                         min={1}
                         value={row.carga_horaria || ""}
                         onChange={(e) => updateGradeRow(row.tempId, "carga_horaria", parseInt(e.target.value) || 0)}
-                        className="w-20 bg-input border-border text-sm"
+                        className="w-16 sm:w-20 bg-input border-border text-sm"
                         placeholder="h"
                       />
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => removeGradeRow(row.tempId)}>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive shrink-0" onClick={() => removeGradeRow(row.tempId)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -339,7 +369,7 @@ const AdminCursos = () => {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={addGradeRow} className="gap-1">
                   <Plus className="h-3 w-3" /> Adicionar módulo
                 </Button>
