@@ -52,6 +52,14 @@ export interface Feriado {
   day: number | null;
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/** Calculate duration in months: 8 hours = 1 month, round up */
+export function hoursToMonths(hours: number): number {
+  if (hours <= 0) return 0;
+  return Math.ceil(hours / 8);
+}
+
 // ── Reads ──────────────────────────────────────────────────────────
 
 export async function getCursos(): Promise<Curso[]> {
@@ -59,6 +67,24 @@ export async function getCursos(): Promise<Curso[]> {
     select: "id,nome,carga_horaria_total",
     order: "nome.asc",
   });
+}
+
+export interface CursoModuloSummary {
+  curso_id: string;
+  carga_horaria: number;
+}
+
+export async function getAllCursoModulosSummary(): Promise<Record<string, { totalHours: number; moduleCount: number }>> {
+  const rows = await supabaseSelect<CursoModuloSummary>("curso_modulos", {
+    select: "curso_id,carga_horaria",
+  });
+  const map: Record<string, { totalHours: number; moduleCount: number }> = {};
+  for (const r of rows) {
+    if (!map[r.curso_id]) map[r.curso_id] = { totalHours: 0, moduleCount: 0 };
+    map[r.curso_id].totalHours += r.carga_horaria;
+    map[r.curso_id].moduleCount++;
+  }
+  return map;
 }
 
 export async function getModulos(): Promise<Modulo[]> {
